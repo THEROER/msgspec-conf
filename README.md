@@ -1,6 +1,6 @@
-# env-settings
+# msgspec-conf
 
-A tiny settings loader inspired by `pydantic_settings`, but implemented with [`msgspec`](https://github.com/jcrist/msgspec). It allows loading structured configuration from environment variables and optional `.env` files without depending on Pydantic.
+A tiny settings loader inspired by `pydantic_settings`, but implemented with [`msgspec`](https://github.com/jcrist/msgspec). It allows loading structured configuration from environment variables, `.env` files, YAML and TOML config files without depending on Pydantic.
 
 ## Features
 
@@ -17,7 +17,7 @@ A tiny settings loader inspired by `pydantic_settings`, but implemented with [`m
 from typing import Optional
 import msgspec
 
-from env_settings import BaseSettings
+from msgspec_conf import BaseSettings
 
 class AppSettings(BaseSettings):
     debug: bool = False
@@ -146,7 +146,7 @@ Services with a top-level `msgspec.Struct` can load nested settings blocks
 declaratively:
 
 ```python
-from env_settings import BaseSettings, ServiceDefaultsBase, load_composed_settings
+from msgspec_conf import BaseSettings, ServiceDefaultsBase, load_composed_settings
 import msgspec
 
 class DatabaseSettings(BaseSettings):
@@ -199,7 +199,9 @@ values.
 ## Installation
 
 ```bash
-uv add git+https://github.com/THEROER/env-settings
+pip install msgspec-conf
+# or
+uv add msgspec-conf
 ```
 
 ## Development

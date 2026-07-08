@@ -7,7 +7,7 @@ from pathlib import Path
 import msgspec
 import pytest
 
-from env_settings import BaseSettings, load_composed_settings, load_settings
+from msgspec_conf import BaseSettings, load_composed_settings, load_settings
 
 
 class ExampleSettings(BaseSettings):
