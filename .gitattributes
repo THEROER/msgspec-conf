@@ -1,0 +1,38 @@
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.svg text eol=lf
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.7z binary
+*.pdf binary
+*.jar binary
+*.aar binary
+*.apk binary
+*.so binary
+*.dll binary
+*.dylib binary
+*.exe binary
+*.wasm binary
+*.mp4 binary
+*.webm binary
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+*.lock -diff
+bun.lock -diff
+uv.lock -diff
+package-lock.json -diff
