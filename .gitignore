@@ -54,7 +54,7 @@ node_modules/
 
 # Secrets and local configs
 .secrets
-*config.local.py
+*.local.*
 .env.local
 .ruff_cache
 

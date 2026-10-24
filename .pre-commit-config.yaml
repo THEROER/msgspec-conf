@@ -1,0 +1,30 @@
+# Local pre-commit gate for a base library (no service-toolkit dependency, so
+# no `lp-ci`). Runs ruff + mypy on commit and pytest on push, using the tools
+# already declared in this project's dev dependency group.
+#
+# Install once per clone:  uv run pre-commit install --install-hooks -t pre-commit -t pre-push
+default_install_hook_types: [pre-commit, pre-push]
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff
+        entry: uv run ruff check src
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+      - id: mypy
+        name: mypy
+        entry: uv run mypy src
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+      - id: pytest
+        name: pytest
+        entry: uv run pytest
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
