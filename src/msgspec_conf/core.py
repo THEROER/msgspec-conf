@@ -8,7 +8,7 @@ from pathlib import Path
 import tomllib
 import types
 import typing
-from typing import Any, Mapping, TypeVar, cast
+from typing import Annotated, Any, Literal, Mapping, TypeVar, cast
 from typing import get_args, get_origin, get_type_hints
 
 import msgspec
@@ -259,6 +259,25 @@ def _coerce_union(expected_type: Any, raw: Any) -> Any:  # noqa: ANN401
     return raw
 
 
+def _coerce_other(expected_type: Any, raw: Any) -> Any:  # noqa: ANN401
+    """Best-effort string coercion for types msgspec can build (enums, literals, structs).
+
+    Unconvertible values are returned unchanged so ``msgspec.convert`` reports
+    the error against the final settings struct.
+    """
+    if not isinstance(raw, str) or expected_type is Any:
+        return raw
+    if _looks_like_json(raw):
+        try:
+            return msgspec.json.decode(raw)
+        except msgspec.DecodeError:
+            return raw
+    try:
+        return msgspec.convert(raw, expected_type, strict=False)
+    except (TypeError, msgspec.ValidationError):
+        return raw
+
+
 def _coerce_value(expected_type: Any, raw: Any) -> Any:  # noqa: ANN401
     origin = get_origin(expected_type)
     if origin is None:
@@ -272,7 +291,13 @@ def _coerce_value(expected_type: Any, raw: Any) -> Any:  # noqa: ANN401
             return float(raw)
         if expected_type is bool:
             return _parse_bool(raw)
-        return raw
+        return _coerce_other(expected_type, raw)
+
+    if origin is Annotated:
+        return _coerce_value(get_args(expected_type)[0], raw)
+
+    if origin is Literal:
+        return _coerce_other(expected_type, raw)
 
     if origin in {list, tuple, set}:
         return _coerce_sequence(expected_type, raw)
@@ -296,7 +321,7 @@ def _is_toml_path(path: str | os.PathLike[str]) -> bool:
 
 def _decode_config_file(path: Path) -> Any:  # noqa: ANN401
     if _is_toml_path(path):
-        return tomllib.loads(path.read_text())
+        return tomllib.loads(path.read_text(encoding="utf-8"))
     return msgspec.yaml.decode(path.read_bytes())
 
 
@@ -346,7 +371,7 @@ def _parse_env_file(path: Path) -> dict[str, str]:
     data: dict[str, str] = {}
     if not path.exists():
         return data
-    for raw_line in path.read_text().splitlines():
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
@@ -418,7 +443,7 @@ def _has_value(value: Any) -> bool:  # noqa: ANN401
 def _read_file_value(path: str | os.PathLike[str], *, field: str) -> str:
     file_path = Path(path)
     try:
-        return file_path.read_text().rstrip("\r\n")
+        return file_path.read_text(encoding="utf-8").rstrip("\r\n")
     except OSError as exc:
         msg = f"unable to read file value for {field}: {file_path}"
         raise msgspec.ValidationError(msg) from exc
@@ -553,7 +578,7 @@ class BaseSettings(msgspec.Struct, kw_only=True, omit_defaults=True):
                 if file_field:
                     file_refs[file_field] = value
 
-        source = env or os.environ
+        source = os.environ if env is None else env
         for key, value in source.items():
             field = _resolve_field(
                 key,
@@ -650,6 +675,7 @@ def load_settings(
     prefix: str | None = None,
     case_sensitive: bool = False,
     defaults: Mapping[str, Any] | None = None,
+    config: Mapping[str, Any] | None = None,
 ) -> _T:
     """Convenience helper to instantiate settings."""
 
@@ -664,6 +690,7 @@ def load_settings(
         prefix=prefix,
         case_sensitive=case_sensitive,
         defaults=defaults,
+        config=config,
     )
 
 
@@ -714,6 +741,26 @@ def load_composed_settings(
         type_hints = get_type_hints(cls, include_extras=True)
     except NameError:
         type_hints = dict(getattr(cls, "__annotations__", {}))
+
+    if config:
+        fields = _field_lookup(cls, case_sensitive=case_sensitive)
+        for key, value in config.items():
+            name = _resolve_config_field(
+                key,
+                fields=fields,
+                case_sensitive=case_sensitive,
+            )
+            if not name or name in values or name in (prefixes or {}):
+                continue
+            hinted_type = type_hints.get(name)
+            if hinted_type is None or isinstance(hinted_type, str):
+                values[name] = value
+                continue
+            try:
+                values[name] = msgspec.convert(value, hinted_type)
+            except msgspec.ValidationError as exc:
+                msg = f"invalid config value for {cls.__name__}.{name}: {exc}"
+                raise msgspec.ValidationError(msg) from exc
 
     for field, prefix in (prefixes or {}).items():
         settings_type = type_hints.get(field)

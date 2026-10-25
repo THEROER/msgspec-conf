@@ -120,6 +120,14 @@ Prefer JSON when values are deeply nested or may contain delimiters.
 Boolean values are parsed strictly. Accepted values are `1/0`, `true/false`,
 `yes/no`, `on/off`, and `y/n`.
 
+`Literal[...]`, `enum.Enum`/`IntEnum` and `Annotated[...]` fields are coerced
+from their string form, and nested `msgspec.Struct` fields accept JSON:
+
+```env
+APP_LOG_LEVEL=2
+APP_ENDPOINT={"host":"api.example.com","port":443}
+```
+
 ## File-backed values
 
 If `TOKEN` is empty or unset, `TOKEN_FILE` can point to a file containing the
@@ -195,6 +203,9 @@ database:
 
 Environment variables (e.g. `POSTGRES_HOST`) still override the matching YAML
 values.
+
+Shared fields covered by `defaults_cls` also read environment variables; other
+top-level fields are taken from the config file as-is.
 
 ## Installation
 

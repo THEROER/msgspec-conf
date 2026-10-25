@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import enum
 from pathlib import Path
+from typing import Annotated, Literal
 
 import msgspec
 import pytest
@@ -16,6 +18,22 @@ class ExampleSettings(BaseSettings):
     port: int = 8000
     timeout: float = 5.5
     tags: list[str] = msgspec.field(default_factory=list)
+
+
+
+class Level(enum.IntEnum):
+    LOW = 1
+    HIGH = 2
+
+
+class Mode(enum.Enum):
+    FAST = "fast"
+    SAFE = "safe"
+
+
+class Endpoint(msgspec.Struct):
+    host: str = "localhost"
+    port: int = 80
 
 
 def test_load_from_defaults_only() -> None:
@@ -434,3 +452,102 @@ def test_load_composed_settings_from_toml_config_table(tmp_path: Path) -> None:
     assert settings.service_name == "from-toml"
     assert settings.upstream.target == "toml:5000"
     assert settings.upstream.timeout_seconds == pytest.approx(3.5)
+
+
+def test_explicit_empty_env_does_not_read_os_environ(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HOST", "from-os-environ")
+
+    settings = ExampleSettings.load(env={})
+    assert settings.host == "localhost"
+
+
+def test_coerces_annotated_values() -> None:
+    class PortSettings(BaseSettings):
+        port: Annotated[int, msgspec.Meta(ge=1)] = 80
+
+    assert PortSettings.load(env={"PORT": "8080"}).port == 8080
+    with pytest.raises(msgspec.ValidationError):
+        PortSettings.load(env={"PORT": "0"})
+
+
+def test_coerces_literal_and_enum_values() -> None:
+    class ChoiceSettings(BaseSettings):
+        verbosity: Literal[0, 1, 2] = 0
+        level: Level = Level.LOW
+        mode: Mode = Mode.SAFE
+
+    settings = ChoiceSettings.load(
+        env={"VERBOSITY": "2", "LEVEL": "2", "MODE": "fast"}
+    )
+    assert settings.verbosity == 2
+    assert settings.level is Level.HIGH
+    assert settings.mode is Mode.FAST
+
+
+def test_loads_nested_struct_from_json() -> None:
+    class EndpointSettings(BaseSettings):
+        endpoint: Endpoint = msgspec.field(default_factory=Endpoint)
+
+    settings = EndpointSettings.load(
+        env={"ENDPOINT": '{"host": "api.example.com", "port": 443}'}
+    )
+    assert settings.endpoint == Endpoint(host="api.example.com", port=443)
+
+
+def test_load_settings_helper_accepts_config() -> None:
+    settings = load_settings(ExampleSettings, env={}, config={"host": "from-config"})
+    assert settings.host == "from-config"
+
+
+def test_composed_config_file_without_defaults_cls(tmp_path: Path) -> None:
+    class DatabaseSettings(BaseSettings):
+        host: str = "localhost"
+
+    class AppSettings(msgspec.Struct, kw_only=True):
+        debug: bool = False
+        service_name: str = "app"
+        database: DatabaseSettings = msgspec.field(default_factory=DatabaseSettings)
+
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(
+        "debug: true\nservice_name: from-yaml\ndatabase:\n  host: db.internal\n"
+    )
+
+    settings = load_composed_settings(
+        AppSettings,
+        env={},
+        config_file=config_file,
+        prefixes={"database": "POSTGRES_"},
+    )
+    assert settings.debug is True
+    assert settings.service_name == "from-yaml"
+    assert settings.database.host == "db.internal"
+
+
+def test_composed_config_file_invalid_shared_value(tmp_path: Path) -> None:
+    class AppSettings(msgspec.Struct, kw_only=True):
+        workers: int = 1
+
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("workers: many\n")
+
+    with pytest.raises(msgspec.ValidationError, match="AppSettings.workers"):
+        load_composed_settings(AppSettings, env={}, config_file=config_file)
+
+
+def test_files_are_read_as_utf8(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Simulate a non-UTF-8 locale (e.g. Windows cp1251) for implicit encodings.
+    monkeypatch.setattr(
+        "io.text_encoding",
+        lambda encoding, stacklevel=2: encoding or "cp1251",
+    )
+    env_file = tmp_path / ".env"
+    env_file.write_text("HOST=хост.example\n", encoding="utf-8")
+    toml_file = tmp_path / "config.toml"
+    toml_file.write_text('tags = ["привіт"]\n', encoding="utf-8")
+
+    settings = ExampleSettings.load(env={}, env_file=env_file, config_file=toml_file)
+    assert settings.host == "хост.example"
+    assert settings.tags == ["привіт"]
