@@ -1,6 +1,6 @@
 [project]
 name = "msgspec-conf"
-version = "1.3.0"
+version = "1.4.0"
 description = "msgspec-based settings loader with env var, .env, YAML and TOML support"
 authors = [{ name = "THEROER", email = "theroer09@gmail.com" }]
 readme = "README.md"
