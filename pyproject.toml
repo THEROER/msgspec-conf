@@ -27,7 +27,7 @@ Issues = "https://github.com/THEROER/env-settings/issues"
 [dependency-groups]
 dev = [
     "pre-commit>=4.6.0",
-    "pytest>=9.0.2,<10",
+    "pytest>=9.0.3,<10",
     "pytest-cov>=7.0.0,<8",
     "ruff>=0.15.5,<0.16",
     "mypy>=1.19.1,<2",
