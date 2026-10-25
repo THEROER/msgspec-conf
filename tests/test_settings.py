@@ -544,13 +544,13 @@ def test_files_are_read_as_utf8(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
         lambda encoding, stacklevel=2: encoding or "cp1251",
     )
     env_file = tmp_path / ".env"
-    env_file.write_text("HOST=хост.example\n", encoding="utf-8")
+    env_file.write_text("HOST=café.example\n", encoding="utf-8")
     toml_file = tmp_path / "config.toml"
-    toml_file.write_text('tags = ["привіт"]\n', encoding="utf-8")
+    toml_file.write_text('tags = ["naïve"]\n', encoding="utf-8")
 
     settings = ExampleSettings.load(env={}, env_file=env_file, config_file=toml_file)
-    assert settings.host == "хост.example"
-    assert settings.tags == ["привіт"]
+    assert settings.host == "café.example"
+    assert settings.tags == ["naïve"]
 
 
 def test_env_file_export_and_inline_comments(tmp_path: Path) -> None:
