@@ -551,3 +551,31 @@ def test_files_are_read_as_utf8(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     settings = ExampleSettings.load(env={}, env_file=env_file, config_file=toml_file)
     assert settings.host == "хост.example"
     assert settings.tags == ["привіт"]
+
+
+def test_env_file_export_and_inline_comments(tmp_path: Path) -> None:
+    class DotenvSettings(BaseSettings):
+        token: str = ""
+        host: str = ""
+        color: str = ""
+        quoted: str = ""
+        single: str = ""
+        url: str = ""
+
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "export TOKEN=abc\n"
+        "HOST=example.com  # production host\n"
+        "COLOR=#ff0000\n"
+        'QUOTED="a # not a comment" # comment\n'
+        "SINGLE='it''s' \n"
+        "URL=https://example.com/page#anchor\n"
+    )
+
+    settings = DotenvSettings.load(env={}, env_file=env_file)
+    assert settings.token == "abc"
+    assert settings.host == "example.com"
+    assert settings.color == "#ff0000"
+    assert settings.quoted == "a # not a comment"
+    assert settings.single == "it''s"
+    assert settings.url == "https://example.com/page#anchor"

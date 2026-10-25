@@ -30,6 +30,10 @@ print(settings.database_url)
 
 `.env` values override defaults, while real environment variables take precedence over the file.
 
+`.env` lines may start with `export `. A `#` preceded by whitespace starts a
+comment in unquoted values (`HOST=example.com  # prod`), while `COLOR=#fff`,
+URLs with fragments and quoted values (`NOTE="a # b"`) are kept as written.
+
 ## YAML and TOML config files
 
 A config file can supply structured, non-secret configuration — the kind you

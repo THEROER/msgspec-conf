@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 import os
 from pathlib import Path
+import re
 import tomllib
 import types
 import typing
@@ -22,6 +23,8 @@ _TRUE_VALUES = {"1", "true", "t", "yes", "y", "on"}
 _FALSE_VALUES = {"0", "false", "f", "no", "n", "off"}
 _DEFAULT_DELIMITERS = {",", ";", "\n"}
 _RECORD_DELIMITERS = {";", "\n"}
+_ENV_EXPORT_RE = re.compile(r"^export\s+")
+_ENV_INLINE_COMMENT_RE = re.compile(r"\s+#.*$")
 
 UNION_TYPES: set[Any] = {typing.Union}
 if hasattr(types, "UnionType"):
@@ -367,6 +370,22 @@ def _resolve_config_field(
     return fields.get(key.upper()) or fields.get(key)
 
 
+def _parse_env_value(raw: str) -> str:
+    """Unquote a .env value and drop a trailing ``# comment``.
+
+    Quoted values keep everything between the quotes (including ``#``); in
+    unquoted values ``#`` starts a comment only when preceded by whitespace.
+    """
+    value = raw.strip()
+    if value and value[0] in {'"', "'"}:
+        end = value.rfind(value[0])
+        if end > 0:
+            rest = value[end + 1 :].strip()
+            if not rest or rest.startswith("#"):
+                return value[1:end]
+    return _ENV_INLINE_COMMENT_RE.sub("", value)
+
+
 def _parse_env_file(path: Path) -> dict[str, str]:
     data: dict[str, str] = {}
     if not path.exists():
@@ -375,14 +394,11 @@ def _parse_env_file(path: Path) -> dict[str, str]:
         line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
+        line = _ENV_EXPORT_RE.sub("", line)
         if "=" not in line:
             continue
         key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip()
-        if value and value[0] == value[-1] and value[0] in {'"', "'"}:
-            value = value[1:-1]
-        data[key] = value
+        data[key.strip()] = _parse_env_value(value)
     return data
 
 
@@ -658,7 +674,7 @@ class ServiceDefaultsBase(BaseSettings):
     debug: bool = False
     sqlalchemy_echo: bool = False
     service_name: str = "service"
-    public_base_url: str = "https://leavelocal.com"
+    public_base_url: str = ""
     cors_allow_origins: list[str] = msgspec.field(default_factory=list)
     cors_allow_origins_debug: list[str] = msgspec.field(default_factory=list)
     snowflake_worker_id: int = 0
